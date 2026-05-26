@@ -2,7 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 
 // 1. Khởi tạo chìa khóa cấu hình AI
 // Khóa API_KEY này bạn sẽ lấy ở bước sau để bảo mật hệ thống
-const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY';
+const GEMINI_API_KEY = 'AIzaSyCZNk9Te6e4hF651ZIm-bo4y6UuG760Zc8';
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 // 2. Định nghĩa System Instruction (Lệnh tối cao ép AI phải nghe theo)
