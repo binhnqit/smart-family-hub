@@ -1,129 +1,194 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../../services/supabaseClient';
-import { processFamilyCommand } from '../../services/aiService';
+// src/modules/calendar/CalendarScreen.jsx
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { supabase } from '../../api/supabaseClient'; 
+import { processFamilyCommand } from '../../api/geminiService'; // Đảm bảo đúng đường dẫn import của pro
 
 export default function CalendarScreen() {
   const [events, setEvents] = useState([]);
-  const [inputText, setInputText] = useState('');
+  const [command, setCommand] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchCalendar = async () => {
-    const { data, error } = await supabase
-      .from('family_calendar')
-      .select('*')
-      .order('event_date', { ascending: true });
-    if (!error && data) setEvents(data);
-  };
-
+  // Lấy dữ liệu sự kiện từ Supabase khi mở màn hình
   useEffect(() => {
-    fetchCalendar();
+    fetchEvents();
   }, []);
 
-  const handleAiSubmit = async (e) => {
-    e.preventDefault();
-    if (!inputText.trim() || loading) return;
-    setLoading(true);
-    const res = await processFamilyCommand(inputText);
-    if (res.success) {
-      setInputText('');
-      fetchCalendar();
-    } else {
-      alert("⚠️ Lỗi phân tích lệnh AI. Hãy kiểm tra lại API Key.");
+  const fetchEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .order('start_time', { ascending: true });
+      
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error("Lỗi lấy dữ liệu lịch trình:", error.message);
     }
-    setLoading(false);
   };
 
-  // Hàm gán màu sắc tinh tế cho từng thành viên trong nhà
-  const getAssigneeStyle = (name) => {
-    switch (name) {
-      case 'Bố': return { bg: '#EBF5FF', color: '#007AFF', border: '#C2E0FF' };
-      case 'Mẹ': return { bg: '#FFF0F6', color: '#FF2D55', border: '#FFD6E7' };
-      case 'Con': return { bg: '#E8FBF2', color: '#34C759', border: '#C7F5DE' };
-      default: return { bg: '#F2F2F7', color: '#1C1C1E', border: '#E5E5EA' };
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchEvents();
+    setRefreshing(false);
+  };
+
+  const handleSendAI = async () => {
+    if (!command.trim()) return;
+    setLoading(true);
+    try {
+      // 1. Gửi câu lệnh tiếng Việt của pro qua xử lý lõi AI Gemini
+      const aiResponse = await processFamilyCommand(command);
+      
+      // 2. Sau khi AI thêm/sửa vào Supabase thành công, xóa ô nhập liệu và cập nhật lại giao diện
+      setCommand('');
+      await fetchEvents();
+      
+      // Thông báo cho người dùng biết
+      Alert.alert("Thành công", aiResponse || "Đã cập nhật lịch trình gia đình!");
+    } catch (error) {
+      Alert.alert("Lỗi hệ thống", "Không thể xử lý câu lệnh AI lúc này.");
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      {/* KHU VỰC NHẬP LỆNH AI CỤC BỘ */}
-      <div style={styles.glassHeader}>
-        <div style={styles.aiTitleRow}>
-          <span style={styles.sparkleIcon}>✨</span>
-          <span style={styles.aiHeaderTitle}>Trợ lý Lịch trình thông minh</span>
-        </div>
-        <form onSubmit={handleAiSubmit} style={styles.searchBar}>
-          <input 
-            type="text"
-            placeholder="Ví dụ: 'Mẹ dặn chiều mai 15h họp phụ huynh cho con'..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            style={styles.input}
-            disabled={loading}
-          />
-          <button type="submit" style={styles.sendBtn} disabled={loading}>
-            {loading ? <div style={styles.spinner}></div> : 'Gửi AI'}
-          </button>
-        </form>
-      </div>
+    <View style={styles.container}>
+      <Text style={styles.headerTitle}>📅 Lịch trình gia đình</Text>
+      
+      {/* THANH NHẬP LỆNH AI ĐIỀU KHIỂN THÔNG MINH */}
+      <View style={styles.aiBox}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nói với Trợ lý: Thêm lịch đi ăn lẩu lúc 19h ngày mai..."
+          value={command}
+          onChangeText={setCommand}
+          placeholderTextColor="#A9A9A9"
+        />
+        <TouchableOpacity style={styles.sendButton} onPress={handleSendAI} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.sendButtonText}>Gửi AI</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
-      <div style={styles.contentBody}>
-        <h2 style={styles.sectionTitle}>📅 Dòng thời gian sự kiện</h2>
-        
-        {events.length === 0 ? (
-          <div style={styles.emptyContainer}>
-            <div style={styles.emptyIcon}>🗓️</div>
-            <p style={styles.emptyText}>Chưa có lịch trình nào được ghi nhận.</p>
-            <p style={styles.emptySubText}>Hãy nhập một câu lệnh tự nhiên ở ô phía trên để Trợ lý Gemini tự động sắp xếp lịch giúp bạn.</p>
-          </div>
-        ) : (
-          <div style={styles.gridList}>
-            {events.map((item) => {
-              const uStyle = getAssigneeStyle(item.assignee);
-              return (
-                <div key={item.id} style={styles.eventCard}>
-                  <div style={styles.cardHeader}>
-                    <span style={{...styles.badge, backgroundColor: uStyle.bg, color: uStyle.color, borderColor: uStyle.border}}>
-                      👤 {item.assignee}
-                    </span>
-                    <div style={styles.dateTimeBadge}>
-                      <span>⏱️ {item.event_time ? item.event_time.substring(0, 5) : 'Cả ngày'}</span>
-                    </div>
-                  </div>
-                  <h3 style={styles.eventTitle}>{item.title}</h3>
-                  <div style={styles.cardFooter}>
-                    <span style={styles.dateLabel}>🗓️ {item.event_date}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {/* HIỂN THỊ DANH SÁCH EVENT CHUẨN ĐIỆN THOẠI */}
+      <FlatList
+        data={events}
+        keyExtractor={(item) => item.id.toString()}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        renderItem={({ item }) => (
+          <View style={styles.eventCard}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.eventTitle}>{item.title}</Text>
+            </View>
+            {item.start_time && (
+              <Text style={styles.eventTime}>
+                ⏰ {new Date(item.start_time).toLocaleString('vi-VN')}
+              </Text>
+            )}
+          </View>
         )}
-      </div>
-    </div>
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Chưa có lịch trình nào được lên.</Text>
+            <Text style={styles.emptySubText}>Hãy thử ra lệnh cho Gemini ở ô phía trên nhé pro!</Text>
+          </View>
+        }
+      />
+    </View>
   );
 }
 
-const styles = {
-  container: { padding: '24px', backgroundColor: '#F8F9FA', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-  glassHeader: { background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.5)', padding: '20px', borderRadius: '24px', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.04)', marginBottom: '32px' },
-  aiTitleRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' },
-  sparkleIcon: { fontSize: '18px', animation: 'pulse 2s infinite' },
-  aiHeaderTitle: { fontWeight: '600', fontSize: '14px', color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  searchBar: { display: 'flex', gap: '12px' },
-  input: { flex: 1, border: '1px solid #E5E7EB', backgroundColor: '#FFFFFF', padding: '14px 20px', borderRadius: '16px', fontSize: '15px', color: '#1F2937', outline: 'none', transition: 'all 0.2s', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' },
-  sendBtn: { backgroundColor: '#6366F1', color: '#FFFFFF', border: 'none', padding: '0 24px', borderRadius: '16px', fontWeight: '600', fontSize: '15px', cursor: 'pointer', transition: 'opacity 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '20px', letterSpacing: '-0.5px' },
-  emptyContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#FFFFFF', borderRadius: '24px', border: '1px dashed #E5E7EB', textAlign: 'center' },
-  emptyIcon: { fontSize: '48px', marginBottom: '16px' },
-  emptyText: { fontWeight: '600', color: '#374151', fontSize: '16px', margin: '0 0 8px 0' },
-  emptySubText: { color: '#9CA3AF', fontSize: '14px', maxWidth: '360px', margin: 0, lineHeight: '1.5' },
-  gridList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' },
-  eventCard: { backgroundColor: '#FFFFFF', border: '1px solid #F3F4F6', padding: '20px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)', display: 'flex', flexDirection: 'column', transition: 'transform 0.2s, boxShadow 0.2s', cursor: 'pointer' },
-  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
-  badge: { padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', border: '1px solid' },
-  dateTimeBadge: { backgroundColor: '#F3F4F6', color: '#4B5563', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '500' },
-  eventTitle: { fontSize: '16px', fontWeight: '600', color: '#1F2937', margin: '0 0 16px 0', lineHeight: '1.4', flex: 1 },
-  cardFooter: { borderTop: '1px solid #F3F4F6', paddingTop: '12px', display: 'flex', justifyContent: 'flex-start' },
-  dateLabel: { fontSize: '13px', color: '#6B7280', fontWeight: '500' },
-  spinner: { width: '20px', height: '20px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#FFF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }
-};
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    padding: 16, 
+    backgroundColor: '#F8F9FA' 
+  },
+  headerTitle: { 
+    fontSize: 22, 
+    fontWeight: '700', 
+    color: '#1C1C1E', 
+    marginBottom: 16,
+    marginTop: 10
+  },
+  aiBox: { 
+    flexDirection: 'row', 
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 6,
+    marginBottom: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  input: { 
+    flex: 1, 
+    height: 45, 
+    paddingHorizontal: 12, 
+    fontSize: 14,
+    color: '#1C1C1E'
+  },
+  sendButton: { 
+    backgroundColor: '#6366F1', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingHorizontal: 16, 
+    borderRadius: 8 
+  },
+  sendButtonText: { 
+    color: '#FFFFFF', 
+    fontWeight: '600', 
+    fontSize: 14 
+  },
+  eventCard: { 
+    backgroundColor: '#FFFFFF', 
+    padding: 16, 
+    borderRadius: 12, 
+    marginBottom: 12,
+    borderWidth: 1, 
+    borderColor: '#E5E5EA',
+    elevation: 1
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6
+  },
+  eventTitle: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#1C1C1E' 
+  },
+  eventTime: { 
+    fontSize: 13, 
+    color: '#8E8E93' 
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 60
+  },
+  emptyText: { 
+    fontSize: 15, 
+    fontWeight: '500',
+    color: '#8E8E93', 
+    textAlign: 'center' 
+  },
+  emptySubText: {
+    fontSize: 13,
+    color: '#AEAEB2',
+    marginTop: 6,
+    textAlign: 'center'
+  }
+});
