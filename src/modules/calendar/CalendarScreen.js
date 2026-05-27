@@ -1,105 +1,77 @@
-// src/modules/calendar/CalendarScreen.jsx
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
-import { supabase } from '../../api/supabaseClient'; 
-import { processFamilyCommand } from '../../api/geminiService'; // Đảm bảo đúng đường dẫn import của pro
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, Alert, Platform } from 'react-native';
+import { supabase } from '../../services/supabaseClient';
+import { processFamilyCommand } from '../../services/aiService';
+import GlassCard from '../../components/ui/GlassCard';
+import AppInput from '../../components/ui/AppInput';
 
 export default function CalendarScreen() {
   const [events, setEvents] = useState([]);
-  const [command, setCommand] = useState('');
+  const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Lấy dữ liệu sự kiện từ Supabase khi mở màn hình
+  const fetchCalendar = async () => {
+    const { data, error } = await supabase
+      .from('family_calendar')
+      .select('*')
+      .order('event_date', { ascending: true });
+    if (!error && data) setEvents(data);
+  };
+
   useEffect(() => {
-    fetchEvents();
+    fetchCalendar();
   }, []);
 
-  const fetchEvents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .select('*')
-        .order('start_time', { ascending: true });
-      
-      if (error) throw error;
-      setEvents(data || []);
-    } catch (error) {
-      console.error("Lỗi lấy dữ liệu lịch trình:", error.message);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchEvents();
-    setRefreshing(false);
-  };
-
-  const handleSendAI = async () => {
-    if (!command.trim()) return;
+  const handleAiSubmit = async () => {
+    if (!inputText.trim() || loading) return;
     setLoading(true);
-    try {
-      // 1. Gửi câu lệnh tiếng Việt của pro qua xử lý lõi AI Gemini
-      const aiResponse = await processFamilyCommand(command);
-      
-      // 2. Sau khi AI thêm/sửa vào Supabase thành công, xóa ô nhập liệu và cập nhật lại giao diện
-      setCommand('');
-      await fetchEvents();
-      
-      // Thông báo cho người dùng biết
-      Alert.alert("Thành công", aiResponse || "Đã cập nhật lịch trình gia đình!");
-    } catch (error) {
-      Alert.alert("Lỗi hệ thống", "Không thể xử lý câu lệnh AI lúc này.");
-      console.error(error);
-    } finally {
-      setLoading(false);
+    const res = await processFamilyCommand(inputText);
+    if (res && res.success) {
+      setInputText('');
+      fetchCalendar();
+      if (Platform.OS !== 'web') Alert.alert("✨ Thành công", "Gemini đã cập nhật lịch trình gia đình!");
+    } else {
+      if (Platform.OS !== 'web') Alert.alert("⚠️ Thất bại", "Lỗi phân tích lệnh AI.");
     }
+    setLoading(false);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>📅 Lịch trình gia đình</Text>
-      
-      {/* THANH NHẬP LỆNH AI ĐIỀU KHIỂN THÔNG MINH */}
-      <View style={styles.aiBox}>
-        <TextInput
-          style={styles.input}
-          placeholder="Nói với Trợ lý: Thêm lịch đi ăn lẩu lúc 19h ngày mai..."
-          value={command}
-          onChangeText={setCommand}
-          placeholderTextColor="#A9A9A9"
-        />
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendAI} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.sendButtonText}>Gửi AI</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* KHU VỰC NHẬP LỆNH AI */}
+      <GlassCard style={styles.headerCard}>
+        <Text style={styles.aiTitle}>✨ Trợ lý Lịch trình thông minh</Text>
+        <View style={styles.searchRow}>
+          <AppInput 
+            placeholder="Mẹ dặn chiều mai 15h họp phụ huynh..."
+            value={inputText}
+            onChangeText={setInputText}
+          />
+          <TouchableOpacity style={styles.sendBtn} onPress={handleAiSubmit} disabled={loading}>
+            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>Gửi AI</Text>}
+          </TouchableOpacity>
+        </View>
+      </GlassCard>
 
-      {/* HIỂN THỊ DANH SÁCH EVENT CHUẨN ĐIỆN THOẠI */}
+      {/* DANH SÁCH LỊCH TRÌNH */}
+      <Text style={styles.sectionTitle}>📅 Dòng thời gian sự kiện</Text>
       <FlatList
         data={events}
         keyExtractor={(item) => item.id.toString()}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
         renderItem={({ item }) => (
-          <View style={styles.eventCard}>
+          <GlassCard style={styles.eventCard}>
             <View style={styles.cardHeader}>
-              <Text style={styles.eventTitle}>{item.title}</Text>
+              <Text style={styles.badgeText}>👤 {item.assignee || 'Cả nhà'}</Text>
+              <Text style={styles.timeText}>⏱️ {item.event_time || 'Cả ngày'}</Text>
             </View>
-            {item.start_time && (
-              <Text style={styles.eventTime}>
-                ⏰ {new Date(item.start_time).toLocaleString('vi-VN')}
-              </Text>
-            )}
-          </View>
+            <Text style={styles.eventTitle}>{item.title}</Text>
+            <Text style={styles.dateText}>🗓️ {item.event_date}</Text>
+          </GlassCard>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Chưa có lịch trình nào được lên.</Text>
-            <Text style={styles.emptySubText}>Hãy thử ra lệnh cho Gemini ở ô phía trên nhé pro!</Text>
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyEmoji}>🗓️</Text>
+            <Text style={styles.emptyText}>Chưa có lịch trình nào được ghi nhận.</Text>
           </View>
         }
       />
@@ -108,87 +80,20 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    padding: 16, 
-    backgroundColor: '#F8F9FA' 
-  },
-  headerTitle: { 
-    fontSize: 22, 
-    fontWeight: '700', 
-    color: '#1C1C1E', 
-    marginBottom: 16,
-    marginTop: 10
-  },
-  aiBox: { 
-    flexDirection: 'row', 
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 6,
-    marginBottom: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  input: { 
-    flex: 1, 
-    height: 45, 
-    paddingHorizontal: 12, 
-    fontSize: 14,
-    color: '#1C1C1E'
-  },
-  sendButton: { 
-    backgroundColor: '#6366F1', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    paddingHorizontal: 16, 
-    borderRadius: 8 
-  },
-  sendButtonText: { 
-    color: '#FFFFFF', 
-    fontWeight: '600', 
-    fontSize: 14 
-  },
-  eventCard: { 
-    backgroundColor: '#FFFFFF', 
-    padding: 16, 
-    borderRadius: 12, 
-    marginBottom: 12,
-    borderWidth: 1, 
-    borderColor: '#E5E5EA',
-    elevation: 1
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6
-  },
-  eventTitle: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: '#1C1C1E' 
-  },
-  eventTime: { 
-    fontSize: 13, 
-    color: '#8E8E93' 
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 60
-  },
-  emptyText: { 
-    fontSize: 15, 
-    fontWeight: '500',
-    color: '#8E8E93', 
-    textAlign: 'center' 
-  },
-  emptySubText: {
-    fontSize: 13,
-    color: '#AEAEB2',
-    marginTop: 6,
-    textAlign: 'center'
-  }
+  container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
+  headerCard: { marginBottom: 20 },
+  aiTitle: { fontSize: 14, fontWeight: '700', color: '#6366F1', marginBottom: 12, textTransform: 'uppercase' },
+  searchRow: { flexDirection: 'row', gap: 10 },
+  sendBtn: { backgroundColor: '#6366F1', borderRadius: 12, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center' },
+  btnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 16 },
+  eventCard: { marginBottom: 12, backgroundColor: '#FFFFFF' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  badgeText: { fontSize: 12, fontWeight: '600', color: '#6366F1', backgroundColor: '#EBF5FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  timeText: { fontSize: 12, color: '#4B5563', fontWeight: '500' },
+  eventTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 10 },
+  dateText: { fontSize: 13, color: '#6B7280' },
+  emptyBox: { alignItems: 'center', marginTop: 40 },
+  emptyEmoji: { fontSize: 40, marginBottom: 10 },
+  emptyText: { color: '#9CA3AF', fontSize: 14 }
 });
