@@ -4,7 +4,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
 
 import CalendarScreen from './src/modules/calendar/CalendarScreen';
@@ -14,7 +13,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('calendar');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
 
       <View style={styles.content}>
         {currentTab === 'calendar'
@@ -50,26 +49,31 @@ export default function App() {
 
       </View>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100vw',
+    height: '100vh',
     backgroundColor: '#F8F9FA',
   },
 
   content: {
     flex: 1,
+    width: '100%',
   },
 
   tabBar: {
     height: 65,
-    backgroundColor: '#FFFFFF',
+    width: '100%',
+    backgroundColor: '#FFF',
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#E5E5EA',
+    flexShrink: 0,
   },
 
   tabButton: {
