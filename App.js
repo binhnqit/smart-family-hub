@@ -1,6 +1,5 @@
-// App.js (Nằm ngay thư mục gốc)
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, Platform } from 'react-native';
 import CalendarScreen from './src/modules/calendar/CalendarScreen';
 import ChoresScreen from './src/modules/chores/ChoresScreen';
 
@@ -11,12 +10,10 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8F9FA" />
       
-      {/* VÙNG HIỂN THỊ NỘI DUNG MÀN HÌNH */}
       <View style={styles.mainContent}>
         {currentTab === 'calendar' ? <CalendarScreen /> : <ChoresScreen />}
       </View>
 
-      {/* THANH ĐIỀU HƯỚNG BOTTOM BAR CHUẨN ĐIỆN THOẠI */}
       <View style={styles.tabBar}>
         <TouchableOpacity 
           onPress={() => setCurrentTab('calendar')}
@@ -49,39 +46,18 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F8F9FA' 
-  },
-  mainContent: { 
-    flex: 1, 
-    marginBottom: 65 
-  },
+  container: { flex: 1, backgroundColor: '#F8F9FA', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  mainContent: { flex: 1, marginBottom: 65 },
   tabBar: { 
-    position: 'absolute', 
-    bottom: 0, 
-    left: 0, 
-    right: 0, 
-    height: 65, 
-    backgroundColor: '#FFFFFF', 
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA', 
-    flexDirection: 'row', 
-    justifyContent: 'space-around', 
-    alignItems: 'center',
-    elevation: 8, // Tạo shadow mượt trên Android
-    shadowColor: '#000', // Tạo shadow trên iOS
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: 65, 
+    backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E5EA', 
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 5 },
+      android: { elevation: 8 },
+      web: { boxShadow: '0px -2px 10px rgba(0,0,0,0.03)' }
+    })
   },
-  tabButton: { 
-    flex: 1,
-    alignItems: 'center', 
-    justifyContent: 'center',
-    height: '100%',
-  },
-  tabText: {
-    fontSize: 14,
-  }
+  tabButton: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' },
+  tabText: { fontSize: 14 }
 });
