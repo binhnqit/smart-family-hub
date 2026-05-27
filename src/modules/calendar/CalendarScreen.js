@@ -1,99 +1,327 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, Alert, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Platform,
+  Alert,
+} from 'react-native';
+
 import { supabase } from '../../services/supabaseClient';
 import { processFamilyCommand } from '../../services/aiService';
-import GlassCard from '../../components/ui/GlassCard';
-import AppInput from '../../components/ui/AppInput';
 
 export default function CalendarScreen() {
   const [events, setEvents] = useState([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const fetchCalendar = async () => {
-    const { data, error } = await supabase
-      .from('family_calendar')
-      .select('*')
-      .order('event_date', { ascending: true });
-    if (!error && data) setEvents(data);
-  };
-
+  // 1. Fetch dữ liệu ban đầu khi vào App
   useEffect(() => {
     fetchCalendar();
+
+    // 2. KÍCH HOẠT REALTIME: Tự động cập nhật giao diện khi Supabase nảy số dữ liệu mới
+    const subscription = supabase
+      .channel('realtime-family-calendar')
+      .on(
+        'postgres_changes',
+        { event: '*', scheme: 'public', table: 'family_calendar' },
+        (payload) => {
+          console.log('Phát hiện thay đổi database dữ liệu:', payload);
+          fetchCalendar(); // Tự động reload lại danh sách sự kiện tức thì
+        }
+      )
+      .subscribe();
+
+    // Hủy lắng nghe channel khi đóng màn hình để tránh leak bộ nhớ
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, []);
+
+  const fetchCalendar = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('family_calendar')
+        .select('*')
+        .order('event_date', { ascending: true });
+
+      if (!error && data) {
+        setEvents(data);
+      }
+    } catch (err) {
+      console.log('Lỗi fetch lịch trình:', err);
+    }
+  };
 
   const handleAiSubmit = async () => {
     if (!inputText.trim() || loading) return;
-    setLoading(true);
-    const res = await processFamilyCommand(inputText);
-    if (res && res.success) {
-      setInputText('');
-      fetchCalendar();
-      if (Platform.OS !== 'web') Alert.alert("✨ Thành công", "Gemini đã cập nhật lịch trình gia đình!");
-    } else {
-      if (Platform.OS !== 'web') Alert.alert("⚠️ Thất bại", "Lỗi phân tích lệnh AI.");
+
+    try {
+      setLoading(true);
+      const res = await processFamilyCommand(inputText);
+
+      if (res && res.success) {
+        setInputText('');
+        fetchCalendar();
+        showNotification('✨ Thành công', 'Trợ lý AI đã ghi nhận lịch trình vào hệ thống!');
+      } else {
+        showNotification('⚠️ Thất bại', 'AI chưa hiểu câu lệnh này, pro thử diễn đạt lại xem sao nhé.');
+      }
+    } catch (err) {
+      console.log(err);
+      showNotification('⚠️ Có lỗi', 'Hệ thống kết nối AI trục trặc.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  // Hàm hiển thị thông báo an toàn cho cả Web và Thiết bị di động
+  const showNotification = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
+  const getUserColor = (name) => {
+    switch (name) {
+      case 'Bố':
+        return '#007AFF';
+      case 'Mẹ':
+        return '#FF2D55';
+      case 'Con':
+        return '#34C759';
+      default:
+        return '#636366';
+    }
   };
 
   return (
-    <View style={styles.container}>
-      {/* KHU VỰC NHẬP LỆNH AI */}
-      <GlassCard style={styles.headerCard}>
-        <Text style={styles.aiTitle}>✨ Trợ lý Lịch trình thông minh</Text>
-        <View style={styles.searchRow}>
-          <AppInput 
-            placeholder="Mẹ dặn chiều mai 15h họp phụ huynh..."
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* HEADER */}
+      <View style={styles.headerCard}>
+        <Text style={styles.aiTitle}>✨ Trợ lý lịch trình AI</Text>
+
+        <View style={styles.inputRow}>
+          <TextInput
             value={inputText}
             onChangeText={setInputText}
+            placeholder="Ví dụ: Mẹ dặn mai 15h họp phụ huynh"
+            placeholderTextColor="#9CA3AF"
+            style={styles.input}
+            multiline
           />
-          <TouchableOpacity style={styles.sendBtn} onPress={handleAiSubmit} disabled={loading}>
-            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>Gửi AI</Text>}
+
+          <TouchableOpacity
+            style={styles.sendButton}
+            onPress={handleAiSubmit}
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.sendButtonText}>Gửi lệnh</Text>
+            )}
           </TouchableOpacity>
         </View>
-      </GlassCard>
+      </View>
 
-      {/* DANH SÁCH LỊCH TRÌNH */}
+      {/* TITLE */}
       <Text style={styles.sectionTitle}>📅 Dòng thời gian sự kiện</Text>
-      <FlatList
-        data={events}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <GlassCard style={styles.eventCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.badgeText}>👤 {item.assignee || 'Cả nhà'}</Text>
-              <Text style={styles.timeText}>⏱️ {item.event_time || 'Cả ngày'}</Text>
+
+      {/* EMPTY */}
+      {events.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyIcon}>🗓️</Text>
+          <Text style={styles.emptyTitle}>Chưa có lịch trình</Text>
+          <Text style={styles.emptyText}>
+            Hãy nhập một câu lệnh tự nhiên để Gemini AI tự động tạo lịch cho gia đình.
+          </Text>
+        </View>
+      ) : (
+        events.map((item) => (
+          <View key={item.id} style={styles.eventCard}>
+            <View style={styles.cardTop}>
+              <View
+                style={[
+                  styles.userBadge,
+                  { backgroundColor: getUserColor(item.assignee) },
+                ]}
+              >
+                <Text style={styles.userBadgeText}>
+                  👤 {item.assignee || 'Cả nhà'}
+                </Text>
+              </View>
+
+              <Text style={styles.timeText}>
+                ⏱️{' '}
+                {item.event_time
+                  ? String(item.event_time).substring(0, 5)
+                  : 'Cả ngày'}
+              </Text>
             </View>
+
             <Text style={styles.eventTitle}>{item.title}</Text>
             <Text style={styles.dateText}>🗓️ {item.event_date}</Text>
-          </GlassCard>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>🗓️</Text>
-            <Text style={styles.emptyText}>Chưa có lịch trình nào được ghi nhận.</Text>
           </View>
-        }
-      />
-    </View>
+        ))
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#F8F9FA' },
-  headerCard: { marginBottom: 20 },
-  aiTitle: { fontSize: 14, fontWeight: '700', color: '#6366F1', marginBottom: 12, textTransform: 'uppercase' },
-  searchRow: { flexDirection: 'row', gap: 10 },
-  sendBtn: { backgroundColor: '#6366F1', borderRadius: 12, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center' },
-  btnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 16 },
-  eventCard: { marginBottom: 12, backgroundColor: '#FFFFFF' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  badgeText: { fontSize: 12, fontWeight: '600', color: '#6366F1', backgroundColor: '#EBF5FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  timeText: { fontSize: 12, color: '#4B5563', fontWeight: '500' },
-  eventTitle: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 10 },
-  dateText: { fontSize: 13, color: '#6B7280' },
-  emptyBox: { alignItems: 'center', marginTop: 40 },
-  emptyEmoji: { fontSize: 40, marginBottom: 10 },
-  emptyText: { color: '#9CA3AF', fontSize: 14 }
+  container: {
+    flex: 1,
+    backgroundColor: '#F4F7FB',
+  },
+  contentContainer: {
+    padding: 20,
+    paddingBottom: 120,
+  },
+  headerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 28,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 8px 24px rgba(0,0,0,0.05)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 3,
+      },
+    }),
+  },
+  aiTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4F46E5',
+    marginBottom: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  inputRow: {
+    gap: 12,
+  },
+  input: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    minHeight: 56,
+    fontSize: 15,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    ...Platform.select({
+      web: { outlineStyle: 'none' }, // Xóa viền đen xấu xí khi focus trên web
+    }),
+  },
+  sendButton: {
+    backgroundColor: '#4F46E5',
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#6B7280',
+    lineHeight: 22,
+    fontSize: 14,
+  },
+  eventCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 12px rgba(0,0,0,0.04)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        elevation: 2,
+      },
+    }),
+  },
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  userBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  userBadgeText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  timeText: {
+    color: '#6B7280',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  eventTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 14,
+    lineHeight: 24,
+  },
+  dateText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
