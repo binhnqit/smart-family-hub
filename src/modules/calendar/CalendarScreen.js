@@ -19,24 +19,21 @@ export default function CalendarScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 1. Fetch dữ liệu ban đầu khi vào App
   useEffect(() => {
     fetchCalendar();
 
-    // 2. KÍCH HOẠT REALTIME: Tự động cập nhật giao diện khi Supabase nảy số dữ liệu mới
+    // Thiết lập kênh nghe realtime tự động đồng bộ dữ liệu
     const subscription = supabase
       .channel('realtime-family-calendar')
       .on(
         'postgres_changes',
-        { event: '*', scheme: 'public', table: 'family_calendar' },
+        { event: '*', schema: 'public', table: 'family_calendar' },
         (payload) => {
-          console.log('Phát hiện thay đổi database dữ liệu:', payload);
-          fetchCalendar(); // Tự động reload lại danh sách sự kiện tức thì
+          fetchCalendar();
         }
       )
       .subscribe();
 
-    // Hủy lắng nghe channel khi đóng màn hình để tránh leak bộ nhớ
     return () => {
       supabase.removeChannel(subscription);
     };
@@ -53,7 +50,7 @@ export default function CalendarScreen() {
         setEvents(data);
       }
     } catch (err) {
-      console.log('Lỗi fetch lịch trình:', err);
+      console.log('Lỗi tải dữ liệu lịch:', err);
     }
   };
 
@@ -67,19 +64,18 @@ export default function CalendarScreen() {
       if (res && res.success) {
         setInputText('');
         fetchCalendar();
-        showNotification('✨ Thành công', 'Trợ lý AI đã ghi nhận lịch trình vào hệ thống!');
+        showNotification('✨ Thành công', 'Trợ lý AI đã cập nhật lịch trình!');
       } else {
-        showNotification('⚠️ Thất bại', 'AI chưa hiểu câu lệnh này, pro thử diễn đạt lại xem sao nhé.');
+        showNotification('⚠️ Thất bại', 'AI chưa xử lý được câu lệnh này.');
       }
     } catch (err) {
       console.log(err);
-      showNotification('⚠️ Có lỗi', 'Hệ thống kết nối AI trục trặc.');
+      showNotification('⚠️ Có lỗi xảy ra', 'Không thể kết nối dịch vụ AI.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Hàm hiển thị thông báo an toàn cho cả Web và Thiết bị di động
   const showNotification = (title, message) => {
     if (Platform.OS === 'web') {
       window.alert(`${title}: ${message}`);
@@ -107,7 +103,7 @@ export default function CalendarScreen() {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* HEADER */}
+      {/* CARD HEADER CHỨA Ô NHẬP LỆNH AI */}
       <View style={styles.headerCard}>
         <Text style={styles.aiTitle}>✨ Trợ lý lịch trình AI</Text>
 
@@ -136,10 +132,10 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      {/* TITLE */}
+      {/* TIÊU ĐỀ DANH SÁCH SỰ KIỆN */}
       <Text style={styles.sectionTitle}>📅 Dòng thời gian sự kiện</Text>
 
-      {/* EMPTY */}
+      {/* DANH SÁCH TRẠNG THÁI */}
       {events.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyIcon}>🗓️</Text>
@@ -227,7 +223,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     ...Platform.select({
-      web: { outlineStyle: 'none' }, // Xóa viền đen xấu xí khi focus trên web
+      web: { outlineStyle: 'none' },
     }),
   },
   sendButton: {
