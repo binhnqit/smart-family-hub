@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { supabase } from './supabaseClient'; // Đảm bảo bạn đã có file kết nối supabaseClient trước đó
+import { supabase } from '../api/supabaseClient'; // Đảm bảo bạn đã có file kết nối supabaseClient trước đó
 
 const aiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;

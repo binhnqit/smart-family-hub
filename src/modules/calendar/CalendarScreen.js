@@ -8,7 +8,8 @@ import {
   Platform,
   Alert
 } from 'react-native';
-import { supabase } from '../../services/supabaseClient';
+// Đi lùi 2 cấp (từ calendar -> modules -> src), sau đó đi vào api
+import { supabase } from '../../api/supabaseClient';
 
 export default function CalendarScreen() {
   const [events, setEvents] = useState([]);

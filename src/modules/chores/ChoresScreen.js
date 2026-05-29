@@ -10,7 +10,7 @@ import {
   Platform,
   Alert
 } from 'react-native';
-import { supabase } from '../../services/supabaseClient';
+import { supabase } from '../../api/supabaseClient';
 import { processFamilyCommand } from '../../services/aiService';
 
 export default function ChoresScreen() {
@@ -286,4 +286,95 @@ const styles = StyleSheet.create({
     borderRadius: 24, 
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#
+    borderColor: '#E5E7EB'
+  },
+  emptyIcon: { 
+    fontSize: 44, 
+    marginBottom: 12 
+  },
+  emptyText: { 
+    fontWeight: '600', 
+    color: '#374151', 
+    fontSize: 15, 
+    marginBottom: 6,
+    textAlign: 'center'
+  },
+  emptySubText: { 
+    color: '#9CA3AF', 
+    fontSize: 13, 
+    maxWidth: 300, 
+    textAlign: 'center',
+    lineHeight: 18
+  },
+  verticalList: { 
+    gap: 12 
+  },
+  choreCard: { 
+    borderWidth: 1,
+    borderColor: '#F3F4F6', 
+    padding: 16, 
+    borderRadius: 20, 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    ...Platform.select({
+      web: { boxShadow: '0px 4px 6px rgba(0,0,0,0.01)' },
+      default: { elevation: 1, shadowColor: '#000', shadowOpacity: 0.01, shadowRadius: 3 }
+    })
+  },
+  leftSection: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    flex: 1,
+    gap: 12 
+  },
+  checkboxWrapper: {
+    padding: 4
+  },
+  customCheckbox: { 
+    width: 22, 
+    height: 22, 
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF'
+  },
+  customCheckboxChecked: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981'
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold'
+  },
+  textBlock: { 
+    flexDirection: 'column', 
+    gap: 2,
+    flex: 1
+  },
+  choreTitle: { 
+    fontSize: 15, 
+    fontWeight: '600',
+    lineHeight: 20
+  },
+  assigneeBadge: { 
+    fontSize: 12, 
+    color: '#6366F1', 
+    fontWeight: '600' 
+  },
+  rightSection: { 
+    justifyContent: 'center'
+  },
+  coinBadge: { 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
+    borderRadius: 10 
+  },
+  coinBadgeText: {
+    fontSize: 12, 
+    fontWeight: '700'
+  }
+});
