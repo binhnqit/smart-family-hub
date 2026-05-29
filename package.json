@@ -9,15 +9,15 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "expo": "~54.0.0",
-    "react": "18.3.1",
-    "react-native": "0.76.0",
-    "react-native-web": "~0.19.13",
-    "react-dom": "18.3.1",
-    "@expo/metro-runtime": "~4.0.0",
-    "@supabase/supabase-js": "^2.43.0",
+    "@expo/metro-runtime": "~6.1.2",
     "@google/genai": "latest",
-    "@opentelemetry/api": "^1.9.0"
+    "@opentelemetry/api": "^1.9.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "expo": "^54.0.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
